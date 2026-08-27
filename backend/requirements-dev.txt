@@ -1,0 +1,7 @@
+# Development and test dependencies.
+# Install with: python -m pip install -r backend/requirements-dev.txt
+
+-r requirements.txt
+httpx2>=2,<3
+pyright>=1.1.408
+ruff>=0.13.0
