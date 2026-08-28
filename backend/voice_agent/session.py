@@ -37,6 +37,7 @@ from .prompts import (
 )
 from .providers import get_voice_provider
 from .state import TERMINAL_STATUSES, CallState
+from .transcript_console import TranscriptConsole
 
 logger = logging.getLogger("voice-agent")
 
@@ -191,6 +192,8 @@ def create_session(config: AgentConfig, state: CallState) -> AgentSession[CallSt
 def attach_session_events(session: AgentSession[CallState], state: CallState) -> None:
     """Capture current LiveKit events without blocking the audio pipeline."""
 
+    transcript_console = TranscriptConsole.from_environment()
+
     @session.on("conversation_item_added")
     def _on_conversation_item(event: ConversationItemAddedEvent) -> None:
         item = event.item
@@ -202,8 +205,10 @@ def attach_session_events(session: AgentSession[CallState], state: CallState) ->
 
         if item.role == "user":
             state.last_user_text = text
+            transcript_console.write("user", text, interrupted=item.interrupted)
         else:
             state.last_assistant_text = text
+            transcript_console.write("agent", text, interrupted=item.interrupted)
 
         if state.backend.enabled and state.call_log_id is not None:
             state.schedule(
