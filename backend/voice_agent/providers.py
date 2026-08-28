@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Protocol
+from typing import Protocol
 
 from livekit.agents import AgentSession, TurnHandlingOptions, inference
-from livekit.plugins import google
+from livekit.plugins import deepgram
 
 from .config import AgentConfig
 from .state import CallState
 
-DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_LIVEKIT_LLM_MODEL = "google/gemini-2.5-flash-lite"
+
+# Low-latency defaults. Keep VAD silence at or above 0.25 seconds because the
+# LiveKit TurnDetector rejects smaller values. Flux can start speculative LLM
+# work before this timeout, while the shorter final timeout avoids a long pause
+# after a caller has clearly stopped speaking.
+ENGLISH_EOT_TIMEOUT_MS = 750
+PHONE_MAX_ENDPOINTING_DELAY = 0.65
+WEB_MAX_ENDPOINTING_DELAY = 0.8
+CARTESIA_MAX_BUFFER_DELAY_MS = 0
 
 
 class VoiceProvider(Protocol):
@@ -21,41 +30,48 @@ class VoiceProvider(Protocol):
 
 
 class LiveKitInferenceProvider:
-    """Streaming LiveKit STT/TTS with Gemini using the operator's Google API key."""
+    """Direct Deepgram STT with LiveKit-hosted Gemini LLM and Cartesia TTS."""
 
     name = "livekit-inference"
 
     def create_session(self, config: AgentConfig, state: CallState) -> AgentSession[CallState]:
-        google_api_key = (
-            os.getenv("GOOGLE_API_KEY", "").strip()
-            or os.getenv("GEMINI_API_KEY", "").strip()
-        )
-        if not google_api_key:
+        llm_model = os.getenv(
+            "LIVEKIT_LLM_MODEL",
+            DEFAULT_LIVEKIT_LLM_MODEL,
+        ).strip() or DEFAULT_LIVEKIT_LLM_MODEL
+        deepgram_api_key = os.getenv("DEEPGRAM_API_KEY", "").strip()
+        if not deepgram_api_key:
             raise RuntimeError(
-                "Gemini is not configured. Set GOOGLE_API_KEY in backend/.env."
+                "Deepgram is not configured. Set DEEPGRAM_API_KEY in backend/.env."
             )
-        gemini_model = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL).strip()
-        if not gemini_model:
-            gemini_model = DEFAULT_GEMINI_MODEL
 
         language = config.language_code
         is_phone_call = state.direction in {"inbound", "outbound"}
-        stt_model = "deepgram/flux-general-en" if language == "en" else "deepgram/nova-3"
-        stt_options: dict[str, Any] = {"eager_eot_threshold": 0.35} if language == "en" else {}
+        if language == "en":
+            stt_provider = deepgram.STTv2(
+                model="flux-general-en",
+                eager_eot_threshold=0.35,
+                eot_threshold=0.55,
+                eot_timeout_ms=ENGLISH_EOT_TIMEOUT_MS,
+                api_key=deepgram_api_key,
+            )
+        else:
+            stt_provider = deepgram.STT(
+                model="nova-3",
+                language=config.language,
+                api_key=deepgram_api_key,
+            )
         tts_speed = config.speaking_speed * (0.9 if language == "ar" else 1.0)
 
         return AgentSession(
             userdata=state,
-            stt=inference.STT(
-                model=stt_model,
-                language=language,
-                extra_kwargs=stt_options,
-            ),
-            llm=google.LLM(
-                model=gemini_model,
-                api_key=google_api_key,
-                max_output_tokens=220,
-                temperature=config.temperature,
+            stt=stt_provider,
+            llm=inference.LLM(
+                model=llm_model,
+                extra_kwargs={
+                    "max_completion_tokens": 220,
+                    "temperature": config.temperature,
+                },
             ),
             tts=inference.TTS(
                 model="cartesia/sonic-3",
@@ -65,6 +81,10 @@ class LiveKitInferenceProvider:
                     "speed": tts_speed,
                     "volume": 1.0,
                     "add_timestamps": True,
+                    # Send each completed early phrase to Cartesia immediately.
+                    # The prompt deliberately produces a short, meaningful first
+                    # sentence so audio can start while Gemini keeps generating.
+                    "max_buffer_delay_ms": CARTESIA_MAX_BUFFER_DELAY_MS,
                 },
             ),
             vad=inference.VAD(
@@ -80,9 +100,13 @@ class LiveKitInferenceProvider:
                 turn_detection=inference.TurnDetector(),
                 endpointing={
                     "mode": "dynamic",
-                    "min_delay": 0.25 if is_phone_call else 0.35,
-                    "max_delay": 1.2 if is_phone_call else 2.0,
-                    "alpha": 0.75 if is_phone_call else 0.7,
+                    "min_delay": 0.25,
+                    "max_delay": (
+                        PHONE_MAX_ENDPOINTING_DELAY
+                        if is_phone_call
+                        else WEB_MAX_ENDPOINTING_DELAY
+                    ),
+                    "alpha": 0.8 if is_phone_call else 0.75,
                 },
                 interruption={
                     "enabled": True,
@@ -90,13 +114,14 @@ class LiveKitInferenceProvider:
                     "min_duration": 0.25,
                     "min_words": 0,
                     "resume_false_interruption": False,
-                    "false_interruption_timeout": 1.0,
+                    "false_interruption_timeout": 0.75,
                 },
                 preemptive_generation={
                     "enabled": True,
-                    # Keep the LLM preemptive, but wait for a confirmed turn before
-                    # starting TTS. This prevents partial words and replayed audio.
-                    "preemptive_tts": False,
+                    # Feed streaming LLM text into streaming TTS immediately. Audio
+                    # is prepared while the turn is confirmed, then played without
+                    # waiting for the complete LLM response.
+                    "preemptive_tts": True,
                     "max_speech_duration": 8.0,
                     "max_retries": 2,
                 },
@@ -104,6 +129,7 @@ class LiveKitInferenceProvider:
             # Allow a bounded sequence of tool calls for multi-step requests while
             # preserving the existing STT, LLM, and TTS model selections.
             max_tool_steps=5,
+            min_consecutive_speech_delay=0.0,
             use_tts_aligned_transcript=True,
             aec_warmup_duration=config.aec_warmup_seconds,
         )

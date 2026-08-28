@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 from zoneinfo import ZoneInfo
 
 from backend.app.core.config import SUPPORTED_VOICE_LANGUAGE_CODES
-from backend.voice_agent import call_tools, config, prompts, session, worker
+from backend.voice_agent import call_tools, config, prompts, providers, session, worker
 from backend.voice_agent.persistence import BackendClient
 from backend.voice_agent.reservation import ReservationDraft
 from backend.voice_agent.state import CallState
@@ -27,6 +27,7 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("ask exactly one question and then wait", policy)
         self.assertIn("could you tell me that once more", policy)
         self.assertIn("never restart the request from the beginning", policy)
+        self.assertIn("complete, useful sentence of at most eight words", policy)
 
     def test_hotel_prompt_knows_the_opening_was_already_spoken(self) -> None:
         loaded = config.load_agent_config(
@@ -436,7 +437,14 @@ class FullDuplexSessionTests(unittest.IsolatedAsyncioTestCase):
             direction="web",
             participant_identity="test-participant",
         )
-        with patch.dict("os.environ", {"GOOGLE_API_KEY": "unit-test-google-key"}):
+        with patch.dict(
+            "os.environ",
+            {
+                "LIVEKIT_API_KEY": "unit-test-livekit-key",
+                "LIVEKIT_API_SECRET": "unit-test-livekit-secret-at-least-32",
+                "DEEPGRAM_API_KEY": "unit-test-deepgram-key",
+            },
+        ):
             return session.create_session(loaded, state)
 
     async def test_english_uses_flux_with_adaptive_interruption(self) -> None:
@@ -444,32 +452,46 @@ class FullDuplexSessionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNotNone(session.stt)
         assert session.stt is not None
-        self.assertEqual(session.stt.model, "deepgram/flux-general-en")
+        self.assertEqual(session.stt.model, "flux-general-en")
         self.assertEqual(session.stt.capabilities.aligned_transcript, "word")
         self.assertEqual(session._interruption_detection, "adaptive")
         self.assertIsNotNone(session.vad)
         self.assertEqual(session.options.max_tool_steps, 5)
         self.assertEqual(session.options.endpointing.get("mode"), "dynamic")
-        self.assertEqual(session.options.endpointing.get("min_delay"), 0.35)
-        self.assertEqual(session.options.endpointing.get("max_delay"), 2.0)
+        self.assertEqual(session.options.endpointing.get("min_delay"), 0.25)
+        self.assertEqual(
+            session.options.endpointing.get("max_delay"),
+            providers.WEB_MAX_ENDPOINTING_DELAY,
+        )
         self.assertFalse(session.options.interruption.get("resume_false_interruption"))
-        self.assertFalse(session.options.preemptive_generation.get("preemptive_tts"))
+        self.assertEqual(session.options.interruption.get("false_interruption_timeout"), 0.75)
+        self.assertTrue(session.options.preemptive_generation.get("preemptive_tts"))
         self.assertEqual(session.options.preemptive_generation.get("max_retries"), 2)
+
+        stt_options = cast(Any, session.stt)._opts
+        self.assertEqual(stt_options.eager_eot_threshold, 0.35)
+        self.assertEqual(stt_options.eot_threshold, 0.55)
+        self.assertEqual(stt_options.eot_timeout_ms, providers.ENGLISH_EOT_TIMEOUT_MS)
 
         self.assertIsNotNone(session.llm)
         assert session.llm is not None
-        self.assertEqual(session.llm.model, "gemini-3.5-flash-lite")
+        self.assertEqual(session.llm.model, "google/gemini-2.5-flash-lite")
         self.assertIsNotNone(session.tts)
         assert session.tts is not None
         self.assertEqual(session.tts.model, "cartesia/sonic-3")
         self.assertTrue(session.tts.capabilities.streaming)
+        tts_options = cast(Any, session.tts)._opts
+        self.assertEqual(
+            tts_options.extra_kwargs["max_buffer_delay_ms"],
+            providers.CARTESIA_MAX_BUFFER_DELAY_MS,
+        )
 
     async def test_arabic_uses_supported_aligned_model(self) -> None:
         session = self._session("ar")
 
         self.assertIsNotNone(session.stt)
         assert session.stt is not None
-        self.assertEqual(session.stt.model, "deepgram/nova-3")
+        self.assertEqual(session.stt.model, "nova-3")
         self.assertEqual(session.stt.capabilities.aligned_transcript, "word")
         self.assertEqual(session._interruption_detection, "adaptive")
 
@@ -482,11 +504,21 @@ class FullDuplexSessionTests(unittest.IsolatedAsyncioTestCase):
             direction="outbound",
             participant_identity="test-callee",
         )
-        with patch.dict("os.environ", {"GOOGLE_API_KEY": "unit-test-google-key"}):
+        with patch.dict(
+            "os.environ",
+            {
+                "LIVEKIT_API_KEY": "unit-test-livekit-key",
+                "LIVEKIT_API_SECRET": "unit-test-livekit-secret-at-least-32",
+                "DEEPGRAM_API_KEY": "unit-test-deepgram-key",
+            },
+        ):
             phone_session = session.create_session(loaded, state)
 
         self.assertEqual(phone_session.options.endpointing.get("min_delay"), 0.25)
-        self.assertEqual(phone_session.options.endpointing.get("max_delay"), 1.2)
+        self.assertEqual(
+            phone_session.options.endpointing.get("max_delay"),
+            providers.PHONE_MAX_ENDPOINTING_DELAY,
+        )
         assert phone_session.vad is not None
         vad_options = cast(Any, phone_session.vad)._opts
         self.assertEqual(vad_options.activation_threshold, 0.32)
