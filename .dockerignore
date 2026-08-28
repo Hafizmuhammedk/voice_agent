@@ -17,8 +17,7 @@ backend/.env
 .env
 .env.*
 !.env.example
-frontend/node_modules
-frontend/dist
+frontend
 build
 dist
 docs

@@ -377,12 +377,11 @@ Useful local URLs:
 
 The production container setup includes:
 
-- a multi-stage image that compiles React and installs the Python runtime;
+- a backend-only Python image; the React frontend is intentionally excluded from the production image;
 - separate FastAPI and LiveKit worker services from the same image;
-- Caddy automatic HTTPS and reverse proxying;
-- a persistent SQLite volume and persistent TLS certificate volumes;
-- non-root Python containers, health checks, restart policies, and bounded logs; and
-- no public exposure of FastAPI port 8000.
+- direct FastAPI exposure on VM port 8000 with no reverse proxy;
+- a persistent SQLite volume; and
+- non-root Python containers, health checks, restart policies, and bounded logs.
 
 Deployment files:
 
@@ -390,11 +389,10 @@ Deployment files:
 Dockerfile
 .dockerignore
 compose.gcp.yml
-deploy/gcp/Caddyfile
 deploy/gcp/README.md
 ```
 
-Follow the complete [Google Cloud VM deployment guide](deploy/gcp/README.md). A domain pointed at the VM's static external IP is required for the provided automatic HTTPS configuration.
+Follow the complete [Google Cloud VM deployment guide](deploy/gcp/README.md). This configuration exposes FastAPI directly on port 8000 and does not require a domain, Caddy, or Nginx.
 
 ## Use the application
 

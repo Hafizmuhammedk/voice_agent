@@ -1,26 +1,25 @@
 # Deploy the voice agent to a Google Cloud VM
 
-This deployment runs three containers on one Compute Engine VM:
+This deployment runs two containers on one Compute Engine VM:
 
 ```text
-Internet ──HTTPS──► Caddy ──HTTP/private network──► FastAPI + React
-                                                     │
+Internet ──HTTP :8000───────────────────────────► FastAPI
+                                                    │
 LiveKit Cloud ◄──────── outbound TLS/WebSocket ── Voice worker
-                                                     │
-                                                     └──► Deepgram
+                                                    │
+                                                    └──► Deepgram
 ```
 
-The API and agent use the same application image but run as separate processes. Caddy obtains and renews the public TLS certificate. SQLite data and Caddy certificates are stored in named Docker volumes.
+The API and agent use the same backend-only image but run as separate processes. The React frontend is not copied into or built by this image. FastAPI is published directly on VM port 8000, and SQLite data is stored in a named Docker volume.
 
 ## 1. Prerequisites
 
 - A Google Cloud project with billing and Compute Engine enabled.
 - Google Cloud CLI authenticated to that project.
-- A domain or subdomain you control, such as `voice.example.com`.
 - Working LiveKit Cloud, Deepgram, Cartesia, and optional Twilio/SIP configuration.
 - The application source available from a private Git repository or another secure transfer method.
 
-A domain and HTTPS are strongly recommended because public browser microphone access requires a secure context. Caddy needs inbound TCP ports 80 and 443 to obtain certificates; UDP 443 enables HTTP/3.
+This setup intentionally has no Caddy or Nginx reverse proxy and therefore does not provide HTTPS. It is suitable for the backend API and phone/SIP calls. A separately hosted browser frontend must use HTTPS and cannot safely call this HTTP API from an HTTPS page because browsers block mixed content.
 
 ## 2. Reserve an IP and create the VM
 
@@ -55,30 +54,14 @@ gcloud compute firewall-rules create voice-agent-web \
   --network=default \
   --direction=INGRESS \
   --action=ALLOW \
-  --rules=tcp:80,tcp:443,udp:443 \
+  --rules=tcp:8000 \
   --source-ranges=0.0.0.0/0 \
   --target-tags=voice-agent-web
 ```
 
-Do not expose ports 8000 or 5173. FastAPI is reachable only through Caddy, and browser media connects directly to LiveKit Cloud.
+Port 8000 is public in this configuration. Restrict `--source-ranges` to trusted client IPs instead of `0.0.0.0/0` whenever public access is unnecessary.
 
-## 3. Point DNS to the VM
-
-Create an `A` record with your DNS provider:
-
-```text
-voice.example.com  A  STATIC_IP
-```
-
-Wait until the record resolves publicly before starting Caddy:
-
-```bash
-dig +short voice.example.com
-```
-
-The returned address must match the reserved VM address.
-
-## 4. Install Docker on the VM
+## 3. Install Docker on the VM
 
 Connect to the instance:
 
@@ -111,7 +94,7 @@ sudo systemctl enable --now docker
 sudo docker run --rm hello-world
 ```
 
-## 5. Copy the application and configure secrets
+## 4. Copy the application and configure secrets
 
 Clone the repository on the VM. Use your private repository URL:
 
@@ -126,8 +109,6 @@ nano backend/.env
 At minimum, replace these values:
 
 ```dotenv
-APP_DOMAIN=voice.example.com
-
 LIVEKIT_URL=wss://your-project.livekit.cloud
 LIVEKIT_API_KEY=your-livekit-api-key
 LIVEKIT_API_SECRET=your-livekit-api-secret
@@ -158,9 +139,9 @@ TWILIO_TRIAL_MODE=true
 
 The SIP trunk ID must exist in the same LiveKit project as `LIVEKIT_URL` and its API credentials.
 
-## 6. Validate, build, and start
+## 5. Validate, build, and start
 
-The `--env-file` option supplies `APP_DOMAIN` for Compose interpolation. `config --quiet` validates the Compose model without printing expanded secrets:
+`config --quiet` validates the Compose model without printing expanded secrets:
 
 ```bash
 sudo docker compose \
@@ -185,18 +166,16 @@ Check status and logs:
 sudo docker compose --env-file backend/.env -f compose.gcp.yml ps
 sudo docker compose --env-file backend/.env -f compose.gcp.yml logs --tail=100 api
 sudo docker compose --env-file backend/.env -f compose.gcp.yml logs --tail=100 agent
-sudo docker compose --env-file backend/.env -f compose.gcp.yml logs --tail=100 caddy
 ```
 
 Expected results:
 
 - `api` becomes `healthy`.
 - `agent` logs `registered worker` and remains running while waiting for calls.
-- `caddy` obtains a certificate after DNS and firewall propagation.
-- `https://voice.example.com/` redirects to `https://voice.example.com/app/`.
-- `https://voice.example.com/health` returns an `ok` service response.
+- `http://VM_EXTERNAL_IP:8000/docs` opens the FastAPI documentation.
+- `http://VM_EXTERNAL_IP:8000/health` returns an `ok` service response.
 
-## 7. Update the deployment
+## 6. Update the deployment
 
 ```bash
 cd ~/voice_agent
@@ -207,7 +186,7 @@ sudo docker compose --env-file backend/.env -f compose.gcp.yml up -d --remove-or
 sudo docker image prune -f
 ```
 
-Compose recreates only services whose image or configuration changed. The `app_data` and Caddy volumes remain intact.
+Compose recreates only services whose image or configuration changed. The `app_data` volume remains intact.
 
 ## Operations
 
@@ -235,15 +214,16 @@ Stop the deployment without deleting persistent volumes:
 sudo docker compose --env-file backend/.env -f compose.gcp.yml down
 ```
 
-Never add `--volumes` to that command unless you intentionally want to delete the SQLite database and Caddy certificate state.
+Never add `--volumes` to that command unless you intentionally want to delete the SQLite database.
 
 ## Production limitations
 
 - This Compose deployment intentionally runs one API instance because SQLite is a single-host database. Move to Cloud SQL/PostgreSQL before horizontally scaling the API.
-- The frontend's current local bearer-token bootstrap is suitable for controlled testing, not public multi-user authentication.
+- Deploy the React frontend separately if browser access is required, and configure its API URL and the backend's allowed CORS origin for that deployment.
 - Add rate limiting and authorization before exposing outbound calling to untrusted users.
 - Store production credentials in a controlled secret-management workflow rather than a broadly readable file.
 - Configure VM monitoring, disk snapshots, log retention, and an application database backup policy.
+- For a public production browser application, put the API behind a managed HTTPS load balancer or another TLS endpoint before connecting the frontend.
 
 ## Official references
 
@@ -251,4 +231,3 @@ Never add `--volumes` to that command unless you intentionally want to delete th
 - [Google Cloud firewall rules](https://cloud.google.com/firewall/docs/using-firewalls)
 - [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
 - [Install Docker Compose](https://docs.docker.com/compose/install/linux/)
-- [Caddy automatic HTTPS](https://caddyserver.com/docs/quick-starts/https)
