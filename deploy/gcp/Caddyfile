@@ -1,0 +1,23 @@
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	@root path /
+	redir @root /app/ 308
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy api:8000 {
+		health_uri /health
+		health_interval 30s
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title description">
+  <title id="title">Animated full-duplex voice-agent pipeline</title>
+  <desc id="description">A caller waveform moves through speech recognition, Gemini reasoning, and streaming speech synthesis while an interruption signal travels in the opposite direction.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#03120f"/>
+      <stop offset="0.55" stop-color="#071d18"/>
+      <stop offset="1" stop-color="#06110f"/>
+    </linearGradient>
+    <linearGradient id="mint" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5ee7c4"/>
+      <stop offset="0.5" stop-color="#9af6dc"/>
+      <stop offset="1" stop-color="#36bfa0"/>
+    </linearGradient>
+    <radialGradient id="orb" cx="50%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#b9ffe9" stop-opacity="0.95"/>
+      <stop offset="0.38" stop-color="#62e6c3" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#1e947a" stop-opacity="0.05"/>
+    </radialGradient>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+    <path id="forward" d="M250 225 C350 225 360 225 445 225 S650 225 750 225 S945 225 1020 225"/>
+    <path id="reverse" d="M1020 274 C870 315 680 315 520 274 S310 250 230 274"/>
+  </defs>
+
+  <rect width="1200" height="360" rx="28" fill="url(#background)"/>
+  <circle cx="100" cy="56" r="100" fill="#3fd5ae" opacity="0.08" filter="url(#soft)"/>
+  <circle cx="1090" cy="316" r="130" fill="#3fd5ae" opacity="0.07" filter="url(#soft)"/>
+
+  <g opacity="0.18" fill="none" stroke="#79ebcd">
+    <circle cx="110" cy="198" r="56"><animate attributeName="r" values="48;65;48" dur="3.2s" repeatCount="indefinite"/></circle>
+    <circle cx="110" cy="198" r="77"><animate attributeName="opacity" values="0.18;0.04;0.18" dur="3.2s" repeatCount="indefinite"/></circle>
+  </g>
+  <circle cx="110" cy="198" r="44" fill="url(#orb)" filter="url(#glow)">
+    <animate attributeName="r" values="41;47;42;45;41" dur="1.5s" repeatCount="indefinite"/>
+  </circle>
+  <g fill="none" stroke="#d1fff1" stroke-width="5" stroke-linecap="round">
+    <path d="M86 198v-10 M98 198v-24 M110 198v-37 M122 198v-20 M134 198v-31">
+      <animate attributeName="d" values="M86 198v-10 M98 198v-24 M110 198v-37 M122 198v-20 M134 198v-31;M86 198v-31 M98 198v-13 M110 198v-28 M122 198v-39 M134 198v-17;M86 198v-10 M98 198v-24 M110 198v-37 M122 198v-20 M134 198v-31" dur="0.85s" repeatCount="indefinite"/>
+    </path>
+  </g>
+
+  <text x="58" y="285" fill="#d9fff5" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700">CALLER</text>
+  <text x="58" y="309" fill="#77a399" font-family="Segoe UI, Arial, sans-serif" font-size="13">web or phone</text>
+
+  <text x="300" y="62" fill="#e7fff9" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="750">STREAMING VOICE PIPELINE</text>
+  <text x="301" y="91" fill="#79aa9e" font-family="Segoe UI, Arial, sans-serif" font-size="15" letter-spacing="2">LISTEN · REASON · SPEAK · INTERRUPT</text>
+
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <g transform="translate(272 150)">
+      <rect width="194" height="118" rx="19" fill="#0b2720" stroke="#245448"/>
+      <text x="24" y="42" fill="#65e7c4" font-size="13" font-weight="700" letter-spacing="1.6">SPEECH TO TEXT</text>
+      <text x="24" y="73" fill="#e8fff9" font-size="20" font-weight="700">Deepgram</text>
+      <text x="24" y="96" fill="#769f95" font-size="13">streaming transcript</text>
+    </g>
+    <g transform="translate(504 150)">
+      <rect width="194" height="118" rx="19" fill="#0b2720" stroke="#245448"/>
+      <text x="24" y="42" fill="#65e7c4" font-size="13" font-weight="700" letter-spacing="1.6">LANGUAGE MODEL</text>
+      <text x="24" y="73" fill="#e8fff9" font-size="20" font-weight="700">Gemini</text>
+      <text x="24" y="96" fill="#769f95" font-size="13">token stream</text>
+    </g>
+    <g transform="translate(736 150)">
+      <rect width="194" height="118" rx="19" fill="#0b2720" stroke="#245448"/>
+      <text x="24" y="42" fill="#65e7c4" font-size="13" font-weight="700" letter-spacing="1.6">TEXT TO SPEECH</text>
+      <text x="24" y="73" fill="#e8fff9" font-size="20" font-weight="700">Cartesia</text>
+      <text x="24" y="96" fill="#769f95" font-size="13">streaming audio</text>
+    </g>
+  </g>
+
+  <path d="M155 225H272 M466 225H504 M698 225H736 M930 225H1040" fill="none" stroke="#58dcb9" stroke-width="2" stroke-dasharray="5 7" opacity="0.55"/>
+  <g fill="#a9ffe7" filter="url(#glow)">
+    <circle r="5"><animateMotion dur="3.7s" repeatCount="indefinite"><mpath href="#forward"/></animateMotion></circle>
+    <circle r="4" opacity="0.75"><animateMotion dur="3.7s" begin="-1.23s" repeatCount="indefinite"><mpath href="#forward"/></animateMotion></circle>
+    <circle r="4" opacity="0.55"><animateMotion dur="3.7s" begin="-2.46s" repeatCount="indefinite"><mpath href="#forward"/></animateMotion></circle>
+  </g>
+
+  <g transform="translate(1085 198)" fill="none" stroke="#d7fff4" stroke-width="4" stroke-linecap="round">
+    <path d="M-26 0h10l8-15v30l10-24 10 18 8-9h16"/>
+    <circle r="47" stroke="#4dd8b4" opacity="0.25"><animate attributeName="r" values="42;52;42" dur="1.6s" repeatCount="indefinite"/></circle>
+  </g>
+  <text x="1049" y="285" fill="#d9fff5" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700">VOICE</text>
+  <text x="1014" y="309" fill="#77a399" font-family="Segoe UI, Arial, sans-serif" font-size="13">starts on first tokens</text>
+
+  <path d="M1020 274 C870 315 680 315 520 274 S310 250 230 274" fill="none" stroke="#8cf4d8" stroke-width="1.5" stroke-dasharray="4 8" opacity="0.32"/>
+  <circle r="4" fill="#f2fff9" opacity="0.85">
+    <animateMotion dur="2.4s" repeatCount="indefinite"><mpath href="#reverse"/></animateMotion>
+  </circle>
+  <text x="527" y="337" fill="#609489" font-family="Segoe UI, Arial, sans-serif" font-size="12" letter-spacing="1.2">ADAPTIVE BARGE-IN</text>
+</svg>

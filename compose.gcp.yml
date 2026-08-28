@@ -1,0 +1,102 @@
+name: voice-agent
+
+x-application: &application
+  image: voice-agent:${IMAGE_TAG:-latest}
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env_file:
+    - ./backend/.env
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+  networks:
+    - private
+
+services:
+  api:
+    <<: *application
+    command:
+      - python
+      - -m
+      - uvicorn
+      - backend.app.main:create_app
+      - --factory
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --proxy-headers
+      - --forwarded-allow-ips=*
+    environment:
+      APP_ENVIRONMENT: production
+      CORS_ORIGINS: https://${APP_DOMAIN:?Set APP_DOMAIN in backend/.env}
+      DATABASE_URL: sqlite+aiosqlite:////app/data/voice_agent.db
+    volumes:
+      - app_data:/app/data
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  agent:
+    <<: *application
+    command:
+      - python
+      - -m
+      - backend.voice_agent
+      - start
+    environment:
+      APP_ENVIRONMENT: production
+      BACKEND_API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in backend/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/gcp/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      - private
+
+volumes:
+  app_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  private:
+    driver: bridge
