@@ -444,9 +444,10 @@ Add this optional repository variable in **Variables**:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `DEPLOY_TO_GCP` | unset | Set to `true` when push-to-main should deploy automatically. |
 | `GCP_VM_APP_DIR` | `~/voice_agent` | Path of the checked-out project on the VM. |
 
-The VM must already contain `backend/.env`; the workflow does not upload production secrets. The VM clone also needs permission to run `git pull --ff-only` from your repository.
+The VM must already contain `backend/.env`; the workflow does not upload production secrets. The VM clone also needs permission to run `git pull --ff-only` from your repository. If `DEPLOY_TO_GCP` is not set to `true`, pull requests and pushes still run backend checks and Docker build, but deployment is skipped.
 
 Create a deploy SSH key locally:
 
