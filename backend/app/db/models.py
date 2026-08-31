@@ -62,6 +62,7 @@ class AgentSettings(Base):
     )
     provider: Mapped[str] = mapped_column(String(40), default="livekit-inference")
     model: Mapped[str] = mapped_column(String(80), default="cartesia/sonic-3")
+    company_name: Mapped[str] = mapped_column(String(120), default="Your hotel")
     voice_id: Mapped[str] = mapped_column(String(128))
     language: Mapped[str] = mapped_column(String(20), default="en-US")
     personality: Mapped[str] = mapped_column(String(24), default="friendly")

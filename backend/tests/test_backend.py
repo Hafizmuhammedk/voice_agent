@@ -50,6 +50,7 @@ class BackendApiTests(unittest.TestCase):
         payload = {
             "name": "Nova",
             "settings": {
+                "company_name": "Malik Hotel",
                 "voice_id": self.settings.cartesia_voice_id,
                 "language": "en-US",
                 "personality": "friendly",
@@ -161,6 +162,7 @@ class BackendApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 201, response.text)
         body = response.json()
+        self.assertEqual(body["configuration_snapshot"]["settings"]["company_name"], "Malik Hotel")
         self.assertEqual(body["configuration_snapshot"]["settings"]["personality"], "casual")
         self.assertNotIn(self.settings.livekit_api_secret.get_secret_value(), json.dumps(body))
 
@@ -173,6 +175,8 @@ class BackendApiTests(unittest.TestCase):
         metadata = json.loads(dispatch["metadata"])
         self.assertEqual(metadata["session_id"], body["id"])
         self.assertEqual(metadata["customer_name"], user["display_name"])
+        self.assertEqual(metadata["agent_config"]["company_name"], "Malik Hotel")
+        self.assertEqual(metadata["agent_config"]["custom_instructions"], "Use simple explanations.")
 
         changed = self.client.patch(
             f"/api/v1/agents/{agent['id']}/settings",
@@ -257,6 +261,7 @@ class BackendApiTests(unittest.TestCase):
         self.assertEqual(metadata["direction"], "outbound")
         self.assertEqual(metadata["phone_number"], "+919876543210")
         self.assertEqual(metadata["customer_name"], "Hafiz")
+        self.assertEqual(metadata["agent_config"]["company_name"], "Malik Hotel")
         self.assertNotIn(
             self.settings.livekit_api_secret.get_secret_value(),
             response.text,

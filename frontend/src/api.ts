@@ -103,6 +103,7 @@ export const api = {
       body: JSON.stringify({
         name: value.name,
         settings: {
+          company_name: value.company_name,
           voice_id: value.voice_id || null,
           language: value.language,
           personality: value.personality,
@@ -120,6 +121,7 @@ export const api = {
     authorized<AgentSettings>(`/api/v1/agents/${agentId}/settings`, {
       method: "PATCH",
       body: JSON.stringify({
+        company_name: value.company_name,
         voice_id: value.voice_id || null,
         language: value.language,
         personality: value.personality,

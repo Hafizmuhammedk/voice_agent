@@ -17,6 +17,7 @@ import type {
 
 const defaultSettings: SettingsFormValue = {
   name: "Ora",
+  company_name: "Malik Hotel",
   voice_id: "",
   language: "en-US",
   personality: "friendly",
@@ -27,6 +28,7 @@ const defaultSettings: SettingsFormValue = {
 function toFormValue(agent: Agent): SettingsFormValue {
   return {
     name: agent.name,
+    company_name: agent.settings.company_name || defaultSettings.company_name,
     voice_id: agent.settings.voice_id,
     language: agent.settings.language,
     personality: agent.settings.personality,
@@ -88,18 +90,26 @@ export default function App() {
   }, [showError]);
 
   const saveSettings = useCallback(async (): Promise<Agent> => {
-    if (!formValue.name.trim()) throw new Error("Give your voice agent a name.");
+    const agentName = formValue.name.trim();
+    const companyName = formValue.company_name.trim();
+    if (!agentName) throw new Error("Give your voice agent a name.");
+    if (!companyName) throw new Error("Give your hotel a name.");
     setSaving(true);
     setSaved(false);
     setError(null);
     try {
       let next: Agent;
+      const normalizedSettings = {
+        ...formValue,
+        name: agentName,
+        company_name: companyName,
+      };
       if (agent) {
-        const renamed = await api.updateAgentName(agent.id, formValue.name.trim());
-        const settings = await api.updateAgentSettings(agent.id, formValue);
+        const renamed = await api.updateAgentName(agent.id, agentName);
+        const settings = await api.updateAgentSettings(agent.id, normalizedSettings);
         next = { ...renamed, settings };
       } else {
-        next = await api.createAgent({ ...formValue, name: formValue.name.trim() });
+        next = await api.createAgent(normalizedSettings);
       }
       setAgent(next);
       setFormValue(toFormValue(next));

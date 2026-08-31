@@ -67,6 +67,7 @@ class UserCreatedResponse(UserResponse):
 
 
 class AgentSettingsInput(ApiModel):
+    company_name: str = Field(default="Your hotel", min_length=1, max_length=120)
     voice_id: str | None = Field(default=None, min_length=1, max_length=128)
     language: str = Field(default="en-US", min_length=2, max_length=20)
     personality: Personality = Personality.FRIENDLY
@@ -86,6 +87,11 @@ class AgentSettingsInput(ApiModel):
     def clean_voice(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else None
 
+    @field_validator("company_name")
+    @classmethod
+    def clean_company_name(cls, value: str) -> str:
+        return value.strip()
+
     @field_validator("custom_instructions")
     @classmethod
     def protect_system_rules(cls, value: str) -> str:
@@ -93,6 +99,7 @@ class AgentSettingsInput(ApiModel):
 
 
 class AgentSettingsUpdate(ApiModel):
+    company_name: str | None = Field(default=None, min_length=1, max_length=120)
     voice_id: str | None = Field(default=None, min_length=1, max_length=128)
     language: str | None = Field(default=None, min_length=2, max_length=20)
     personality: Personality | None = None
@@ -112,6 +119,11 @@ class AgentSettingsUpdate(ApiModel):
     @field_validator("voice_id")
     @classmethod
     def clean_voice(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("company_name")
+    @classmethod
+    def clean_company_name(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else None
 
     @field_validator("custom_instructions")
@@ -142,6 +154,7 @@ class AgentUpdate(ApiModel):
 class AgentSettingsResponse(ApiModel):
     provider: str
     model: str
+    company_name: str
     voice_id: str
     language: str
     personality: Personality

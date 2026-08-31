@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import random
 
 from livekit.agents import (
     Agent,
@@ -44,6 +45,30 @@ logger = logging.getLogger("voice-agent")
 AMBIENT_OFFICE_VOLUME = 1.5
 THINKING_KEYBOARD_VOLUME = 0.5
 THINKING_KEYBOARD2_VOLUME = 0.5
+
+_GREETING_RANDOM = random.SystemRandom()
+_GREETING_TEMPLATES = (
+    (
+        "Hello{name_prefix} this is {agent_name} {call_phrase} {company_name}. "
+        "I can help with reservations, rooms, amenities, and guest services. "
+        "How can I help today?"
+    ),
+    (
+        "Hi{name_prefix} you've reached {company_name}. I'm {agent_name}, your virtual "
+        "front desk assistant. I can help with bookings, room details, and guest requests. "
+        "What would you like help with?"
+    ),
+    (
+        "Good day{name_prefix} this is {agent_name} {call_phrase} {company_name}. "
+        "I help guests with reservations, hotel information, and service requests. "
+        "What can I do for you today?"
+    ),
+    (
+        "Welcome{name_prefix} this is {company_name}'s virtual front desk. I'm {agent_name}. "
+        "I can help with rooms, reservations, amenities, and guest support. "
+        "How may I assist you?"
+    ),
+)
 
 
 class VoiceAgent(Agent):
@@ -326,11 +351,14 @@ async def greet_caller(session: AgentSession[CallState], state: CallState) -> No
             else ","
         )
         call_phrase = "calling from" if state.direction == "outbound" else "with"
+        template = _GREETING_RANDOM.choice(_GREETING_TEMPLATES)
         await session.say(
-            f"Hello{name_prefix} this is {state.config.agent_name} {call_phrase} "
-            f"{state.config.company_name}. I'm your virtual front desk assistant, and I can help "
-            "with reservations, room information, hotel amenities, and guest services. "
-            "What can I help you with today?",
+            template.format(
+                agent_name=state.config.agent_name,
+                call_phrase=call_phrase,
+                company_name=state.config.company_name,
+                name_prefix=name_prefix,
+            ),
             allow_interruptions=True,
         )
         return

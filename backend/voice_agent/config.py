@@ -155,6 +155,12 @@ def _config_candidates(
     return candidates
 
 
+def _metadata_has_config_key(metadata: dict[str, Any], keys: tuple[str, ...]) -> bool:
+    nested = metadata.get("agent_config")
+    sources = (nested, metadata) if isinstance(nested, dict) else (metadata,)
+    return any(key in source for source in sources for key in keys)
+
+
 def _first_config_text(
     candidates: list[Any],
     default: str,
@@ -205,12 +211,12 @@ def load_agent_config(metadata: dict[str, Any]) -> AgentConfig:
         "there",
         max_length=120,
     )
+    instruction_keys = ("custom_instructions", "instructions", "system_prompt")
+    instruction_env = (
+        None if _metadata_has_config_key(metadata, instruction_keys) else "AGENT_INSTRUCTIONS"
+    )
     instruction_template = _first_config_text(
-        _config_candidates(
-            metadata,
-            ("custom_instructions", "instructions", "system_prompt"),
-            "AGENT_INSTRUCTIONS",
-        ),
+        _config_candidates(metadata, instruction_keys, instruction_env),
         DEFAULT_BUSINESS_INSTRUCTIONS,
         max_length=16_000,
     )
