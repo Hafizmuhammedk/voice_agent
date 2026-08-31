@@ -399,13 +399,13 @@ Follow the complete [Google Cloud VM deployment guide](deploy/gcp/README.md). Th
 
 GitHub Actions is configured in `.github/workflows/ci-cd.yml`.
 
-The pipeline runs on pull requests and pushes to `main`:
+The backend-only pipeline runs on pull requests and pushes to `main`:
 
 ```text
-backend checks -> frontend build -> Docker image build -> deploy to GCP VM
+backend checks -> Docker image build -> deploy to GCP VM
 ```
 
-The deploy job runs only after all checks pass. On a push to `main`, it SSHes into the VM, pulls the newest code, rebuilds the Compose services, restarts the containers, and prunes old Docker images.
+The deploy job runs only after backend checks pass. On a push to `main`, it SSHes into the VM, pulls the newest code, rebuilds the Compose services, restarts the containers, and prunes old Docker images. The React frontend is not included in this CI/CD flow.
 
 ### Required GitHub secrets
 
