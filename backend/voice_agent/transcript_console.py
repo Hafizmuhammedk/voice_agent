@@ -1,4 +1,4 @@
-"""Small, opt-in terminal renderer for committed voice transcripts."""
+"""Small terminal renderer for committed voice transcripts."""
 
 from __future__ import annotations
 
@@ -61,11 +61,9 @@ class TranscriptConsole:
         if "NO_COLOR" in os.environ:
             colors = False
         return cls(
-            enabled=as_bool(os.getenv("CONSOLE_TRANSCRIPTS"), False),
+            enabled=as_bool(os.getenv("CONSOLE_TRANSCRIPTS"), True),
             colors=colors,
-            max_characters=_bounded_max_characters(
-                os.getenv("CONSOLE_TRANSCRIPT_MAX_CHARACTERS")
-            ),
+            max_characters=_bounded_max_characters(os.getenv("CONSOLE_TRANSCRIPT_MAX_CHARACTERS")),
             stream=stream,
         )
 
@@ -86,10 +84,7 @@ class TranscriptConsole:
         suffix = " (interrupted)" if interrupted else ""
         if self.colors:
             color = _SPEAKER_COLORS[speaker]
-            line = (
-                f"{_DIM}[VOICE]{_RESET} {color}{label} >{suffix}{_RESET} "
-                f"{color}{clean}{_RESET}\n"
-            )
+            line = f"{_DIM}[VOICE]{_RESET} {color}{label} >{suffix}{_RESET} {color}{clean}{_RESET}\n"
         else:
             line = f"[VOICE] {label} >{suffix} {clean}\n"
 

@@ -344,6 +344,29 @@ If the current directory is already `backend`, the equivalent command is:
 python -m agent dev
 ```
 
+Readable caller and assistant transcript lines are enabled by default in the
+worker terminal. Keep these values in `backend/.env` when you want highlighted
+voice logs:
+
+```dotenv
+CONSOLE_TRANSCRIPTS=true
+CONSOLE_TRANSCRIPT_COLORS=true
+CONSOLE_TRANSCRIPT_MAX_CHARACTERS=500
+```
+
+The worker prints committed voice turns like this:
+
+```text
+[VOICE] USER  > I need a room for tomorrow.
+[VOICE] AGENT > Sure, I can help with that.
+```
+
+For Docker logs on the VM:
+
+```bash
+sudo docker compose --env-file backend/.env -f compose.gcp.yml logs -f --no-log-prefix agent
+```
+
 ### Terminal 3 — React development server
 
 ```powershell
