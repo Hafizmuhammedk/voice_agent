@@ -65,8 +65,9 @@ jobs:
     name: Deploy to GCP VM
     runs-on: ubuntu-latest
     needs: docker
+    environment: voice
     if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_TO_GCP == 'true') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && inputs.deploy == 'true')
 
     steps:
@@ -87,7 +88,7 @@ jobs:
         env:
           GCP_VM_HOST: ${{ secrets.GCP_VM_HOST }}
           GCP_VM_USER: ${{ secrets.GCP_VM_USER }}
-          GCP_VM_APP_DIR: ${{ vars.GCP_VM_APP_DIR || '~/voice_agent' }}
+          GCP_VM_APP_DIR: ${{ secrets.GCP_VM_APP_DIR || '~/voice_agent' }}
         run: |
           : "${GCP_VM_USER:?Missing GitHub Actions secret: GCP_VM_USER}"
           ssh -i ~/.ssh/voice_agent_vm "$GCP_VM_USER@$GCP_VM_HOST" "cd $GCP_VM_APP_DIR && git pull --ff-only && sudo docker compose --env-file backend/.env -f compose.gcp.yml up -d --build --remove-orphans && sudo docker image prune -f"

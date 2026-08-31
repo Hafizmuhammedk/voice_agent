@@ -432,7 +432,7 @@ The deploy job runs only after backend checks pass. On a push to `main`, it SSHe
 
 ### Required GitHub secrets
 
-Add these in **GitHub repository -> Settings -> Secrets and variables -> Actions -> Secrets**:
+Add these in **GitHub repository -> Settings -> Environments -> voice -> Environment secrets**:
 
 | Secret | Example | Purpose |
 | --- | --- | --- |
@@ -440,14 +440,13 @@ Add these in **GitHub repository -> Settings -> Secrets and variables -> Actions
 | `GCP_VM_USER` | `hafizmuhammedk9080` | Linux username used for SSH. |
 | `GCP_VM_SSH_KEY` | private key text | Private SSH key that can log in to the VM. |
 
-Add this optional repository variable in **Variables**:
+Add this optional environment secret in the same `voice` environment:
 
-| Variable | Default | Purpose |
+| Secret | Default | Purpose |
 | --- | --- | --- |
-| `DEPLOY_TO_GCP` | unset | Set to `true` when push-to-main should deploy automatically. |
 | `GCP_VM_APP_DIR` | `~/voice_agent` | Path of the checked-out project on the VM. |
 
-The VM must already contain `backend/.env`; the workflow does not upload production secrets. The VM clone also needs permission to run `git pull --ff-only` from your repository. If `DEPLOY_TO_GCP` is not set to `true`, pull requests and pushes still run backend checks and Docker build, but deployment is skipped.
+The VM must already contain `backend/.env`; the workflow does not upload production secrets. The VM clone also needs permission to run `git pull --ff-only` from your repository. The deploy job is bound to the GitHub environment named `voice`, so those environment secrets are available only to deployment.
 
 Create a deploy SSH key locally:
 
