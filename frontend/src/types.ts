@@ -9,6 +9,7 @@ export type Personality =
 export interface AgentSettings {
   provider: string;
   model: string;
+  company_name: string;
   voice_id: string;
   language: string;
   personality: Personality;
@@ -76,6 +77,7 @@ export interface PhoneVerificationStatus {
 
 export interface SettingsFormValue {
   name: string;
+  company_name: string;
   voice_id: string;
   language: string;
   personality: Personality;

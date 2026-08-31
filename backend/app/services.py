@@ -245,6 +245,7 @@ def settings_response(settings: AgentSettings) -> AgentSettingsResponse:
     return AgentSettingsResponse(
         provider=settings.provider,
         model=settings.model,
+        company_name=settings.company_name,
         voice_id=settings.voice_id,
         language=settings.language,
         personality=Personality(settings.personality),
@@ -328,6 +329,7 @@ class AgentService:
         agent_settings = AgentSettings(
             provider=self.app_settings.voice_provider,
             model=self.app_settings.voice_model,
+            company_name=values.company_name,
             voice_id=values.voice_id,
             language=values.language,
             personality=values.personality.value,
@@ -368,6 +370,7 @@ class AgentService:
         )
         current.update(payload.model_dump(exclude_none=True))
         values = self._validated_settings(AgentSettingsInput.model_validate(current))
+        agent.settings.company_name = values.company_name
         agent.settings.voice_id = values.voice_id or self.app_settings.cartesia_voice_id
         agent.settings.language = values.language
         agent.settings.personality = values.personality.value
@@ -465,6 +468,7 @@ class VoiceSessionService:
             "model": self.settings.voice_model,
             "settings": {
                 "agent_name": agent.name,
+                "company_name": runtime.company_name,
                 "provider": self.settings.voice_provider,
                 "model": self.settings.voice_model,
                 "voice_id": runtime.voice_id,

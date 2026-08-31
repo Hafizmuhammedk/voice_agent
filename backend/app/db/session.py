@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
-from sqlalchemy import event
+from sqlalchemy import event, inspect
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -31,6 +31,18 @@ class Database:
     async def initialize(self) -> None:
         async with self.engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
+            if str(self.engine.url).startswith("sqlite"):
+                columns = await connection.run_sync(
+                    lambda sync_connection: {
+                        column["name"]
+                        for column in inspect(sync_connection).get_columns("agent_settings")
+                    }
+                )
+                if "company_name" not in columns:
+                    await connection.exec_driver_sql(
+                        "ALTER TABLE agent_settings ADD COLUMN company_name "
+                        "VARCHAR(120) NOT NULL DEFAULT 'Your hotel'"
+                    )
 
     async def dispose(self) -> None:
         await self.engine.dispose()

@@ -281,6 +281,7 @@ class ConfigTests(unittest.TestCase):
         loaded = config.load_agent_config(
             {
                 "agent_config": {
+                    "company_name": "Malik Hotel",
                     "provider": "livekit-inference",
                     "personality": "professional",
                     "speaking_speed": 1.2,
@@ -290,11 +291,40 @@ class ConfigTests(unittest.TestCase):
             }
         )
 
+        self.assertEqual(loaded.company_name, "Malik Hotel")
         self.assertEqual(loaded.provider, "livekit-inference")
         self.assertEqual(loaded.personality, "professional")
         self.assertEqual(loaded.speaking_speed, 1.2)
         self.assertEqual(loaded.noise_suppression_level, 0.9)
         self.assertEqual(loaded.business_instructions, "Explain difficult ideas simply.")
+
+    def test_frontend_settings_override_environment_hotel_prompt(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "COMPANY_NAME": "Grand Hayat",
+                "AGENT_INSTRUCTIONS": "Old env hotel instructions.",
+            },
+        ):
+            loaded = config.load_agent_config(
+                {
+                    "agent_config": {
+                        "agent_name": "Ora",
+                        "company_name": "Malik Hotel",
+                        "custom_instructions": "Use Malik Hotel policies.",
+                    }
+                }
+            )
+
+        self.assertEqual(loaded.agent_name, "Ora")
+        self.assertEqual(loaded.company_name, "Malik Hotel")
+        self.assertEqual(loaded.business_instructions, "Use Malik Hotel policies.")
+
+    def test_blank_frontend_instructions_do_not_fall_back_to_old_env_prompt(self) -> None:
+        with patch.dict("os.environ", {"AGENT_INSTRUCTIONS": "Old env prompt."}):
+            loaded = config.load_agent_config({"agent_config": {"custom_instructions": ""}})
+
+        self.assertEqual(loaded.business_instructions, config.DEFAULT_BUSINESS_INSTRUCTIONS)
 
     def test_nested_null_falls_back_to_top_level(self) -> None:
         loaded = config.load_agent_config(
@@ -663,13 +693,19 @@ class FullDuplexSessionTests(unittest.IsolatedAsyncioTestCase):
         )
         fake_session = FakeSession()
 
-        await session.greet_caller(cast(Any, fake_session), state)
+        with patch.object(
+            session._GREETING_RANDOM,
+            "choice",
+            return_value=session._GREETING_TEMPLATES[1],
+        ) as choice:
+            await session.greet_caller(cast(Any, fake_session), state)
 
+        choice.assert_called_once_with(session._GREETING_TEMPLATES)
         self.assertEqual(len(fake_session.calls), 1)
         greeting = fake_session.calls[0][0]
         self.assertIn("Ava", greeting)
         self.assertIn("Grand Hayat", greeting)
-        self.assertIn("reservations", greeting)
+        self.assertIn("bookings", greeting)
         self.assertEqual(greeting.count("?"), 1)
 
     async def test_background_audio_uses_office_and_keyboard_clips(self) -> None:

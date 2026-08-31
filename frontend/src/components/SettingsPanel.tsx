@@ -99,6 +99,16 @@ export function SettingsPanel({
                 onChange={(event) => update("name", event.target.value)}
               />
             </label>
+            <label className="field">
+              <span>Hotel name</span>
+              <input
+                value={value.company_name || ""}
+                maxLength={120}
+                required
+                disabled={disabled}
+                onChange={(event) => update("company_name", event.target.value)}
+              />
+            </label>
             <div className="field-grid">
               <label className="field">
                 <span>Voice</span>
@@ -191,7 +201,11 @@ export function SettingsPanel({
 
           <div className="panel-actions">
             <p>{disabled ? "End the conversation to change settings." : "Changes apply to your next conversation."}</p>
-            <button className="save-button" type="submit" disabled={saving || disabled || !value.name.trim()}>
+            <button
+              className="save-button"
+              type="submit"
+              disabled={saving || disabled || !value.name.trim() || !(value.company_name || "").trim()}
+            >
               {saved ? <Check size={17} /> : null}
               {saving ? "Saving…" : saved ? "Saved" : "Save settings"}
             </button>
