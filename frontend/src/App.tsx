@@ -169,8 +169,9 @@ export default function App() {
 
       <SpeakingStream
         active={voice.active}
+        listening={voice.voiceState === "listening"}
         speaking={voice.voiceState === "speaking"}
-        segments={voice.agentSpeech}
+        segments={voice.speechSegments}
       />
 
       <OutboundCallPanel

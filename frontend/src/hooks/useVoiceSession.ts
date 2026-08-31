@@ -9,8 +9,11 @@ import { api } from "../api";
 
 export type VoiceState = "idle" | "connecting" | "listening" | "speaking" | "ending";
 
-export interface AgentSpeechSegment {
+export type SpeechSpeaker = "user" | "agent";
+
+export interface SpeechSegment {
   id: string;
+  speaker: SpeechSpeaker;
   text: string;
   final: boolean;
 }
@@ -33,14 +36,14 @@ function speechKey(text: string): string {
 }
 
 function mergeSpeechSegment(
-  current: AgentSpeechSegment[],
-  incoming: AgentSpeechSegment,
-): AgentSpeechSegment[] {
+  current: SpeechSegment[],
+  incoming: SpeechSegment,
+): SpeechSegment[] {
   const existingIndex = current.findIndex((segment) => segment.id === incoming.id);
   if (existingIndex === -1) {
     const incomingKey = speechKey(incoming.text);
     const duplicateIndex = current.findIndex(
-      (segment) => speechKey(segment.text) === incomingKey,
+      (segment) => segment.speaker === incoming.speaker && speechKey(segment.text) === incomingKey,
     );
     if (incomingKey && duplicateIndex !== -1) {
       const duplicate = current[duplicateIndex];
@@ -67,7 +70,7 @@ export function useVoiceSession(onError: (message: string) => void) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [muted, setMuted] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [agentSpeech, setAgentSpeech] = useState<AgentSpeechSegment[]>([]);
+  const [speechSegments, setSpeechSegments] = useState<SpeechSegment[]>([]);
   const [audioLevel, setAudioLevel] = useState(0);
   const roomRef = useRef<LiveKitRoom | null>(null);
   const microphoneRef = useRef<LocalAudioTrack | null>(null);
@@ -155,7 +158,7 @@ export function useVoiceSession(onError: (message: string) => void) {
       setVoiceState("connecting");
       setElapsedSeconds(0);
       setMuted(false);
-      setAgentSpeech([]);
+      setSpeechSegments([]);
       intentionalDisconnectRef.current = false;
 
       try {
@@ -177,10 +180,11 @@ export function useVoiceSession(onError: (message: string) => void) {
           const attributes = reader.info.attributes ?? {};
           const isTranscription = Boolean(attributes["lk.transcribed_track_id"]);
           const isLocalSpeaker = participantInfo.identity === room.localParticipant.identity;
-          if (!isTranscription || isLocalSpeaker) return;
+          if (!isTranscription) return;
 
           const id = attributes["lk.segment_id"] || reader.info.id;
           const final = attributes["lk.transcription_final"] === "true";
+          const speaker: SpeechSpeaker = isLocalSpeaker ? "user" : "agent";
           let text = "";
 
           try {
@@ -188,8 +192,8 @@ export function useVoiceSession(onError: (message: string) => void) {
               text += chunk;
               const normalized = text.trim();
               if (!normalized || roomRef.current !== room) continue;
-              setAgentSpeech((current) =>
-                mergeSpeechSegment(current, { id, text: normalized, final }),
+              setSpeechSegments((current) =>
+                mergeSpeechSegment(current, { id, speaker, text: normalized, final }),
               );
             }
           } catch {
@@ -244,7 +248,7 @@ export function useVoiceSession(onError: (message: string) => void) {
           if (!intentionalDisconnectRef.current) {
             setVoiceState("idle");
             setMuted(false);
-            setAgentSpeech([]);
+            setSpeechSegments([]);
             // The agent's end-call tool deletes the dedicated room after a normal
             // goodbye. That is a successful call ending, not a connection failure.
             if (reason !== DisconnectReason.ROOM_DELETED) {
@@ -313,7 +317,7 @@ export function useVoiceSession(onError: (message: string) => void) {
     } finally {
       audioHostRef.current?.replaceChildren();
       setMuted(false);
-      setAgentSpeech([]);
+      setSpeechSegments([]);
       setVoiceState("idle");
     }
   }, [clearAudioAnalysers, onError]);
@@ -336,7 +340,7 @@ export function useVoiceSession(onError: (message: string) => void) {
     muted,
     elapsedSeconds,
     audioLevel,
-    agentSpeech,
+    speechSegments,
     audioHostRef,
     start,
     stop,

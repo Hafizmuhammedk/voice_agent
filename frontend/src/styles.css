@@ -175,6 +175,7 @@ button { color: inherit; }
 }
 .speaking-stream.is-visible { visibility: visible; opacity: .84; transform: translateY(0); }
 .speaking-stream.is-speaking { border-color: rgba(114, 225, 186, .28); opacity: .94; box-shadow: inset 0 1px rgba(255,255,255,.03), 0 22px 64px rgba(0,0,0,.27), 0 0 38px rgba(46,181,137,.06); }
+.speaking-stream.is-listening { border-color: rgba(124, 184, 255, .22); opacity: .9; }
 .speaking-stream-header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 13px 14px 11px; color: #b9d1c8; }
 .speaking-stream-header > span:nth-child(2) { display: grid; gap: 3px; text-align: left; }
 .speaking-stream-header strong { font-size: 9px; letter-spacing: .11em; text-transform: uppercase; }
@@ -182,10 +183,16 @@ button { color: inherit; }
 .speaking-stream-icon { width: 29px; height: 29px; display: grid; place-items: center; border: 1px solid rgba(118,240,197,.12); border-radius: 9px; color: var(--accent); background: rgba(114, 225, 186, .07); }
 .speaking-stream-header i { width: 6px; height: 6px; border-radius: 50%; background: #61776f; }
 .speaking-stream.is-speaking .speaking-stream-header i { background: var(--accent); box-shadow: 0 0 0 4px rgba(114, 225, 186, .08); animation: caption-pulse 1.4s ease-in-out infinite; }
+.speaking-stream.is-listening .speaking-stream-header i,
+.speaking-stream-header i.is-user { background: #7cb8ff; box-shadow: 0 0 0 4px rgba(124,184,255,.08); animation: caption-pulse 1.4s ease-in-out infinite; }
 .speaking-stream-copy { max-height: 188px; overflow: hidden; padding: 0 15px 14px; }
 .speaking-stream-copy p { margin: 6px 0 0; color: rgba(199, 217, 210, .4); font-size: 11px; line-height: 1.55; }
+.speaking-stream-copy p span { display: block; margin-bottom: 2px; color: rgba(154, 185, 174, .62); font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .speaking-stream-copy p.is-current { position: relative; padding-left: 10px; color: rgba(239, 248, 244, .94); font-size: 13px; }
 .speaking-stream-copy p.is-current::before { content: ""; width: 2px; position: absolute; left: 0; top: 3px; bottom: 3px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 8px rgba(118,240,197,.35); }
+.speaking-stream-copy p.is-user.is-current::before { background: #7cb8ff; box-shadow: 0 0 8px rgba(124,184,255,.35); }
+.speaking-stream-copy p.is-user.is-current span { color: rgba(172, 211, 255, .82); }
+.speaking-stream-copy p.is-agent.is-current span { color: rgba(158, 234, 207, .82); }
 
 .settings-scrim { position: fixed; inset: 0; z-index: 20; border: 0; padding: 0; visibility: hidden; opacity: 0; background: rgba(2,8,7,.6); backdrop-filter: blur(4px); transition: .3s ease; }
 .settings-scrim.is-open { visibility: visible; opacity: 1; }
@@ -881,6 +888,7 @@ button { color: inherit; }
 }
 .speaking-stream.is-visible { opacity: .78; }
 .speaking-stream.is-speaking { opacity: .94; border-color: rgba(114, 224, 186, .32); }
+.speaking-stream.is-listening { opacity: .9; border-color: rgba(124, 184, 255, .27); }
 .speaking-stream-header { gap: 9px; padding: 11px 12px 9px; }
 .speaking-stream-icon {
   width: 24px;

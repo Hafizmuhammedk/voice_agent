@@ -52,7 +52,29 @@ class TranscriptConsoleTests(unittest.TestCase):
         self.assertIn(b"[VOICE]", buffer.getvalue())
         output.detach()
 
-    def test_environment_configuration_is_opt_in(self) -> None:
+    def test_environment_configuration_is_enabled_by_default(self) -> None:
+        with patch.dict("os.environ", {}, clear=True):
+            console = TranscriptConsole.from_environment(stream=io.StringIO())
+
+        self.assertTrue(console.enabled)
+
+    def test_environment_configuration_can_disable_terminal_output(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "CONSOLE_TRANSCRIPTS": "false",
+                "CONSOLE_TRANSCRIPT_COLORS": "false",
+                "CONSOLE_TRANSCRIPT_MAX_CHARACTERS": "120",
+            },
+            clear=True,
+        ):
+            console = TranscriptConsole.from_environment(stream=io.StringIO())
+
+        self.assertFalse(console.enabled)
+        self.assertFalse(console.colors)
+        self.assertEqual(console.max_characters, 120)
+
+    def test_environment_configuration_accepts_explicit_enablement(self) -> None:
         with patch.dict(
             "os.environ",
             {
