@@ -8,10 +8,11 @@ from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import jwt
-from backend.app.core.config import AppSettings
-from backend.app.main import create_app
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
+
+from backend.app.core.config import AppSettings
+from backend.app.main import create_app
 
 
 class BackendApiTests(unittest.TestCase):

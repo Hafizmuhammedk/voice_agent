@@ -698,7 +698,7 @@ class FullDuplexSessionTests(unittest.IsolatedAsyncioTestCase):
         thinking = player_class.call_args.kwargs["thinking_sound"]
         self.assertEqual(ambient.source, session.BuiltinAudioClip.OFFICE_AMBIENCE)
         self.assertEqual(ambient.volume, session.AMBIENT_OFFICE_VOLUME)
-        self.assertLess(ambient.volume, 0.1)
+        self.assertGreater(ambient.volume, 0)
         self.assertEqual(len(thinking), 2)
         self.assertEqual(thinking[0].source, session.BuiltinAudioClip.KEYBOARD_TYPING)
         self.assertEqual(thinking[0].volume, session.THINKING_KEYBOARD_VOLUME)

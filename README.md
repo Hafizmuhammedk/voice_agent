@@ -29,6 +29,7 @@
 - [Installation](#installation)
 - [Environment configuration](#environment-configuration)
 - [Run the application](#run-the-application)
+- [CI/CD](#cicd)
 - [Docker deployment on a GCP VM](#docker-deployment-on-a-gcp-vm)
 - [Use the application](#use-the-application)
 - [Outbound phone calls](#outbound-phone-calls)
@@ -393,6 +394,63 @@ deploy/gcp/README.md
 ```
 
 Follow the complete [Google Cloud VM deployment guide](deploy/gcp/README.md). This configuration exposes FastAPI directly on port 8000 and does not require a domain, Caddy, or Nginx.
+
+## CI/CD
+
+GitHub Actions is configured in `.github/workflows/ci-cd.yml`.
+
+The pipeline runs on pull requests and pushes to `main`:
+
+```text
+backend checks -> frontend build -> Docker image build -> deploy to GCP VM
+```
+
+The deploy job runs only after all checks pass. On a push to `main`, it SSHes into the VM, pulls the newest code, rebuilds the Compose services, restarts the containers, and prunes old Docker images.
+
+### Required GitHub secrets
+
+Add these in **GitHub repository -> Settings -> Secrets and variables -> Actions -> Secrets**:
+
+| Secret | Example | Purpose |
+| --- | --- | --- |
+| `GCP_VM_HOST` | `34.71.167.181` | External IP or DNS name of the VM. |
+| `GCP_VM_USER` | `hafizmuhammedk9080` | Linux username used for SSH. |
+| `GCP_VM_SSH_KEY` | private key text | Private SSH key that can log in to the VM. |
+
+Add this optional repository variable in **Variables**:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `GCP_VM_APP_DIR` | `~/voice_agent` | Path of the checked-out project on the VM. |
+
+The VM must already contain `backend/.env`; the workflow does not upload production secrets. The VM clone also needs permission to run `git pull --ff-only` from your repository.
+
+Create a deploy SSH key locally:
+
+```powershell
+ssh-keygen -t ed25519 -C "voice-agent-github-actions" -f .\voice_agent_deploy_key
+```
+
+Put the public key on the VM:
+
+```powershell
+gcloud compute ssh voice-agent --zone=us-central1-c --command "mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo 'PASTE_PUBLIC_KEY_HERE' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+```
+
+Put the private key content from `voice_agent_deploy_key` into the `GCP_VM_SSH_KEY` GitHub secret.
+
+### Manual deploy
+
+Open **Actions -> CI/CD -> Run workflow**. Keep `deploy=true`.
+
+### VM deploy command used by CI
+
+```bash
+cd ~/voice_agent
+git pull --ff-only
+sudo docker compose --env-file backend/.env -f compose.gcp.yml up -d --build --remove-orphans
+sudo docker image prune -f
+```
 
 ## Use the application
 
