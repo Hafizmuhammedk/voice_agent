@@ -5,7 +5,7 @@
 <h1 align="center">Full-Duplex Hotel Voice Agent</h1>
 
 <p align="center">
-  A low-latency browser and phone assistant built with LiveKit Agents, FastAPI, React, Deepgram, Gemini, Cartesia, and Twilio SIP.
+  A low-latency browser and phone assistant for natural hotel conversations, realtime settings, and outbound calling.
 </p>
 
 <p align="center">
@@ -17,13 +17,13 @@
 </p>
 
 > [!IMPORTANT]
-> This project uses a fast, cascaded `STT → LLM → TTS` pipeline. It is inspired by the interaction style of NVIDIA PersonaPlex, but it does **not** run or claim to be the PersonaPlex model.
+> This project uses a fast, streaming voice pipeline. The README intentionally describes the system architecture without exposing private runtime choices.
 
 ## Contents
 
 - [What the project does](#what-the-project-does)
 - [Architecture](#architecture)
-- [Technology and model routing](#technology-and-model-routing)
+- [Runtime components](#runtime-components)
 - [Project structure](#project-structure)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
@@ -47,11 +47,11 @@ This repository contains a complete hotel voice-assistant application rather tha
 | --- | --- |
 | Browser voice | The React client publishes microphone audio and receives agent audio over LiveKit WebRTC. |
 | Phone voice | LiveKit SIP connects the worker to Twilio and the public telephone network. |
-| Fast first audio | Gemini output is streamed into Cartesia TTS; speech can begin before the LLM completes its answer. |
+| Fast first audio | The assistant can start speaking before the full answer is finished. |
 | Barge-in | The microphone remains active while the assistant speaks, allowing the caller to interrupt. |
 | Turn detection | VAD, LiveKit turn prediction, dynamic endpointing, and false-interruption handling coordinate turns. |
-| Speech input | Deepgram Flux handles English; Deepgram Nova-3 handles the configured non-English languages. |
-| Speech output | Cartesia Sonic 3 streams synthesized audio through LiveKit Inference. |
+| Speech input | Streaming speech recognition turns caller audio into transcripts. |
+| Speech output | Streaming speech synthesis returns natural voice audio. |
 | Noise control | Automatic gain control and AI-coustics enhancement clean microphone input. |
 | Hotel workflow | The prompt covers reservations, rooms, amenities, policies, directions, and guest requests. |
 | Repetition control | The runtime tracks recent turns, avoids duplicate questions, and asks for clarification when audio is unclear. |
@@ -70,9 +70,9 @@ flowchart LR
     DB[(SQL database)]
     LK[LiveKit Cloud<br/>rooms + dispatch + media]
     Worker[Python voice worker]
-    DG[Deepgram STT]
-    Gemini[Gemini via<br/>LiveKit Inference]
-    Cartesia[Cartesia TTS via<br/>LiveKit Inference]
+    SpeechIn[Speech recognition]
+    Reasoning[Language reasoning]
+    SpeechOut[Speech synthesis]
     Twilio[Twilio SIP / PSTN]
 
     Browser -->|HTTPS settings & session requests| API
@@ -82,12 +82,12 @@ flowchart LR
     Phone <-->|PSTN| Twilio
     Twilio <-->|SIP| LK
     LK <-->|realtime audio| Worker
-    Worker -->|audio stream| DG
-    DG -->|partial/final transcript| Worker
-    Worker -->|conversation context| Gemini
-    Gemini -->|token stream| Worker
-    Worker -->|streaming text| Cartesia
-    Cartesia -->|audio stream| Worker
+    Worker -->|audio stream| SpeechIn
+    SpeechIn -->|partial/final transcript| Worker
+    Worker -->|conversation context| Reasoning
+    Reasoning -->|streaming text| Worker
+    Worker -->|speakable text| SpeechOut
+    SpeechOut -->|audio stream| Worker
 ```
 
 FastAPI is the **control plane**: it authenticates application requests, stores configuration, creates LiveKit tokens, and starts outbound dispatches. It does not proxy realtime audio.
@@ -99,10 +99,10 @@ LiveKit is the **media plane**: browser or SIP audio travels through the LiveKit
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant S as Deepgram STT
+    participant S as Speech recognition
     participant A as LiveKit agent
-    participant L as Gemini LLM
-    participant T as Cartesia TTS
+    participant L as Language reasoning
+    participant T as Speech synthesis
 
     U->>S: Streaming speech
     S-->>A: Partial and final transcript
@@ -117,32 +117,32 @@ sequenceDiagram
     A--xT: Stop or redirect current speech
 ```
 
-The LLM and TTS therefore overlap in time:
+The reasoning and speech systems overlap in time:
 
 ```text
-Gemini emits first short sentence ──► Cartesia starts synthesizing
-Gemini emits more text chunks ──────► Cartesia continues synthesizing
-First audio frames become ready ────► Agent starts speaking
-Remaining audio keeps streaming ────► No wait for the full answer
+First short text chunk appears ──► speech synthesis starts
+More text keeps streaming ───────► voice audio continues preparing
+First audio frames are ready ────► agent starts speaking
+Remaining audio keeps streaming ─► no wait for the full answer
 ```
 
 This reduces silence before an answer. Network latency, provider load, endpointing, and the length of the first speakable phrase still affect time-to-first-audio.
 
-## Technology and model routing
+## Runtime components
 
 | Layer | Implementation | Authentication path |
 | --- | --- | --- |
 | Web application | React 19, TypeScript, Vite, LiveKit Client SDK | Application bearer token + LiveKit participant JWT |
 | Control API | FastAPI, Pydantic Settings, SQLAlchemy async | Server-side LiveKit credentials |
 | Realtime orchestration | LiveKit Agents 1.7 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
-| Speech recognition | Deepgram Flux / Nova-3 plugin | Direct `DEEPGRAM_API_KEY` |
-| Language model | `google/gemini-2.5-flash-lite` by default | LiveKit Inference |
-| Speech synthesis | `cartesia/sonic-3` | LiveKit Inference |
+| Speech recognition | Streaming recognition provider | Server-side speech credential |
+| Language reasoning | Streaming reasoning provider | Server-side reasoning access |
+| Speech synthesis | Streaming voice provider | Server-side voice access |
 | Noise enhancement | LiveKit AI-coustics plugin | Runs in the worker pipeline |
 | Telephony | LiveKit SIP outbound trunk + Twilio | LiveKit trunk configuration and optional Twilio REST credentials |
 | Storage | SQLite by default | Local database URL |
 
-No direct Google Gemini API key is required by the current code. The Gemini LLM and Cartesia TTS are requested through the LiveKit project; Deepgram STT uses its own API key directly.
+Exact private runtime choices are configured in server-only environment variables and code, not documented here.
 
 ## Project structure
 
@@ -159,17 +159,16 @@ voice_agent/
 │   │   │   ├── config.py           # typed backend environment settings
 │   │   │   └── security.py         # API-token hashing and creation
 │   │   ├── db/
-│   │   │   ├── models.py           # SQLAlchemy models
 │   │   │   └── session.py          # engine and database lifecycle
 │   │   ├── main.py                 # FastAPI application factory
 │   │   ├── repositories.py         # database access boundaries
-│   │   ├── schemas.py              # validated request/response models
+│   │   ├── schemas.py              # validated request/response schemas
 │   │   └── services.py             # users, agents, calls, and sessions
 │   ├── voice_agent/
 │   │   ├── __main__.py             # root-level worker module launcher
 │   │   ├── worker.py               # LiveKit registration and SIP lifecycle
 │   │   ├── session.py              # agent session, events, audio, greeting
-│   │   ├── providers.py            # STT, LLM, TTS, VAD, turn handling
+│   │   ├── providers.py            # speech, reasoning, voice, VAD, turn handling
 │   │   ├── prompts.py              # stable hotel conversation policy
 │   │   ├── reservation.py          # reservation field extraction/state
 │   │   ├── call_tools.py           # transfer and deterministic hang-up
@@ -202,8 +201,8 @@ Legacy examples under a `test/` directory are not part of the runtime. The appli
 
 - Python 3.11.
 - Node.js `20.19+` or `22.12+` and npm, as required by the installed Vite version.
-- A LiveKit Cloud project with Inference access for the configured Gemini and Cartesia models.
-- A Deepgram API key for speech-to-text.
+- A LiveKit Cloud project with realtime voice-agent access.
+- A server-side speech recognition credential.
 - A microphone and speaker for browser/console testing.
 - Optional: a LiveKit SIP outbound trunk and Twilio account for phone calls.
 
@@ -254,9 +253,8 @@ LIVEKIT_URL=wss://your-project.livekit.cloud
 LIVEKIT_API_KEY=your-livekit-project-key
 LIVEKIT_API_SECRET=your-livekit-project-secret
 LIVEKIT_AGENT_NAME=general-assistant
-LIVEKIT_LLM_MODEL=google/gemini-2.5-flash-lite
 
-DEEPGRAM_API_KEY=your-deepgram-api-key
+# Add private speech, reasoning, and voice credentials in backend/.env.
 
 BACKEND_API_URL=http://127.0.0.1:8000
 BACKEND_API_TOKEN=replace-with-a-long-random-private-value
@@ -279,22 +277,20 @@ Use the output only as `BACKEND_API_TOKEN`. This is not a LiveKit participant to
 | `LIVEKIT_API_KEY` | Yes | Server API key from the same LiveKit project. |
 | `LIVEKIT_API_SECRET` | Yes | Server API secret paired with the key. |
 | `LIVEKIT_AGENT_NAME` | No | Worker/dispatch name; defaults to `general-assistant`, and both processes must use the same value. |
-| `LIVEKIT_LLM_MODEL` | No | LiveKit Inference LLM; defaults to `google/gemini-2.5-flash-lite`. |
-| `DEEPGRAM_API_KEY` | Yes | Direct Deepgram credential used only by the worker. |
 | `DATABASE_URL` | No | Async SQLAlchemy URL; defaults to local SQLite. |
 | `BACKEND_API_URL` | Recommended | FastAPI URL used by the worker for lifecycle callbacks. |
 | `BACKEND_API_TOKEN` | Recommended | Shared private token protecting internal status callbacks. |
-| `VOICE_PROVIDER` | No | Provider boundary; current supported value is `livekit-inference`. |
-| `VOICE_MODEL` | No | Voice catalog label; current runtime model is Cartesia Sonic 3. |
-| `CARTESIA_VOICE_ID` | No | Cartesia voice ID sent to LiveKit Inference; a default ID is provided. |
+| Private speech credential | Yes | Server-side speech recognition credential used only by the worker. |
+| Private reasoning setting | No | Server-side reasoning runtime setting used only by the worker. |
+| Private voice setting | No | Server-side voice runtime setting used only by the worker. |
 | `VOICE_AGENT_NAME` | No | Default assistant name used when metadata has no override. |
 | `COMPANY_NAME` | No | Hotel or organization spoken in the greeting. |
 | `AGENT_LANGUAGE` | No | Default locale, for example `en-US`. |
 | `AGENT_TIMEZONE` | No | Timezone used to resolve dates such as “tomorrow.” |
 | `AGENT_INSTRUCTIONS` | No | Hotel knowledge, boundaries, and task-specific behavior. |
 | `AGENT_PERSONALITY` | No | Default personality selected for new agents. |
-| `SPEAKING_SPEED` | No | Cartesia speed multiplier; the UI constrains it to `0.70–1.30`. |
-| `LLM_TEMPERATURE` | No | Gemini response variation; defaults to a focused value. |
+| `SPEAKING_SPEED` | No | Voice speed multiplier; the UI constrains it to `0.70–1.30`. |
+| Response variation setting | No | Controls how focused or varied the assistant sounds. |
 | `ENABLE_BACKGROUND_AUDIO` | No | Enables office ambience and quiet thinking sounds. |
 | `AEC_WARMUP_SECONDS` | No | Echo-cancellation warm-up before normal interaction. |
 | `NOISE_SUPPRESSION_LEVEL` | No | AI-coustics enhancement strength. |
@@ -488,17 +484,17 @@ sudo docker image prune -f
 7. Interrupt the assistant while it speaks to test adaptive barge-in.
 8. Select **End conversation** to disconnect and close the application session.
 
-The development frontend creates a local application user and stores its opaque FastAPI bearer token in browser `localStorage`. FastAPI then creates a short-lived LiveKit participant JWT for each session. The frontend never receives LiveKit API secrets, the Deepgram key, or Twilio credentials.
+The development frontend creates a local application user and stores its opaque FastAPI bearer token in browser `localStorage`. FastAPI then creates a short-lived LiveKit participant JWT for each session. The frontend never receives LiveKit API secrets, speech credentials, or telephony credentials.
 
 ### Agent settings
 
 The settings panel changes the next conversation:
 
 - **Agent name** controls the displayed and spoken assistant identity.
-- **Voice** selects the configured Cartesia voice ID.
-- **Language** selects STT/TTS language handling.
+- **Voice** selects the configured voice.
+- **Language** selects speech input and output language handling.
 - **Personality** chooses friendly, professional, casual, calm, concise, or energetic behavior.
-- **Speaking pace** controls Cartesia output from `0.70×` to `1.30×`.
+- **Speaking pace** controls voice output from `0.70×` to `1.30×`.
 - **Instructions** contain hotel-specific knowledge and response guidance, up to 4,000 characters.
 
 Settings are locked during an active call so the session keeps one immutable configuration snapshot.
@@ -552,7 +548,7 @@ Content-Type: application/json
 | `GET` | `/health` | Process liveness without an external provider call. |
 | `POST` | `/api/v1/users` | Create a development user and return its bearer token once. |
 | `GET` | `/api/v1/users/me` | Read the authenticated application user. |
-| `GET` | `/api/v1/voices` | List the server-configured Cartesia voice. |
+| `GET` | `/api/v1/voices` | List the server-configured voice. |
 | `POST` | `/api/v1/agents` | Create an owned agent and initial settings. |
 | `GET` | `/api/v1/agents` | List the caller's agents. |
 | `GET` | `/api/v1/agents/{agent_id}` | Read one owned agent. |
@@ -583,7 +579,7 @@ Content-Type: application/json
 
 ### Full duplex and interruptions
 
-The worker publishes output and listens to input at the same time. Adaptive interruption permits real barge-in while attempting to ignore short acknowledgements and false starts. This is practical conversational full duplex over a cascaded pipeline, not a single neural model emitting and receiving two raw audio streams.
+The worker publishes output and listens to input at the same time. Adaptive interruption permits real barge-in while attempting to ignore short acknowledgements and false starts. This is practical conversational full duplex over a streaming voice pipeline.
 
 Quick test:
 
@@ -593,14 +589,14 @@ Quick test:
 
 ### Latency controls already enabled
 
-- Streaming Deepgram recognition.
+- Streaming speech recognition.
 - Pre-connect audio capture to preserve the start of a caller's speech.
 - Phone-specific VAD sensitivity and prefix padding.
 - Dynamic endpointing capped at `0.65s` for phone and `0.80s` for web calls.
-- English Flux end-of-turn timeout reduced to `750ms`.
-- Preemptive LLM generation.
-- A useful first sentence of at most eight words, giving TTS an early boundary.
-- Preemptive streaming TTS with zero additional Cartesia buffer delay.
+- Fast end-of-turn timeout for English.
+- Preemptive response generation.
+- A useful first sentence of at most eight words, giving the voice system an early boundary.
+- Preemptive streaming speech synthesis with zero additional buffer delay.
 - Zero additional consecutive-speech delay.
 - Short, speech-friendly prompt responses.
 
@@ -610,7 +606,7 @@ The VAD minimum silence is never set below `0.25s`, because the configured LiveK
 
 The microphone pipeline enables automatic gain control and AI-coustics `QUAIL_VF_S` enhancement. `NOISE_SUPPRESSION_LEVEL` changes enhancement strength.
 
-When `ENABLE_BACKGROUND_AUDIO=true`, the worker adds office ambience and keyboard thinking sounds. Their volume constants live in `backend/voice_agent/session.py`. Keep background audio lower than speech in real deployments; loud ambience can leak through phone speakers and reduce STT accuracy.
+When `ENABLE_BACKGROUND_AUDIO=true`, the worker adds office ambience and keyboard thinking sounds. Their volume constants live in `backend/voice_agent/session.py`. Keep background audio lower than speech in real deployments; loud ambience can leak through phone speakers and reduce recognition accuracy.
 
 ### Prompt and repetition policy
 
@@ -648,7 +644,7 @@ npm run build
 Set-Location ..
 ```
 
-The automated backend tests use mocks for external media/model services. A successful unit suite does not prove that LiveKit, Deepgram, Gemini, Cartesia, SIP, or Twilio credentials have quota and network access; complete one real browser call after deployment.
+The automated backend tests use mocks for external media and voice services. A successful unit suite does not prove that LiveKit, speech, reasoning, voice, SIP, or Twilio credentials have quota and network access; complete one real browser call after deployment.
 
 ## Troubleshooting
 
@@ -685,13 +681,13 @@ That message means it started successfully. Start a browser conversation or crea
 - Open the browser developer console and the worker log together.
 - Verify that a new session was created after the latest credential change.
 
-### `429 Too Many Requests` from STT
+### `429 Too Many Requests` from speech recognition
 
-Speech recognition uses the direct `DEEPGRAM_API_KEY`. Check that the key is active, belongs to the intended Deepgram project, has credit/quota, and is not restricted incorrectly. Restart the worker after replacing it.
+Check that the server-side speech key is active, belongs to the intended project, has credit/quota, and is not restricted incorrectly. Restart the worker after replacing it.
 
-### `429` from the LLM or TTS
+### `429` from reasoning or voice output
 
-Gemini and Cartesia use LiveKit Inference in the current code. Check the LiveKit project's model availability, quota, billing, and rate limits. Adding a Google API key will not repair a LiveKit Inference quota error.
+Check the voice-agent project's provider access, quota, billing, and rate limits. Adding an unrelated API key will not repair quota errors from a different provider path.
 
 ### `vad min_silence_duration ... is too low`
 
@@ -721,9 +717,9 @@ A dedicated call is expected to end when its participant leaves or the call-cont
 ## Security and production notes
 
 - Never commit `backend/.env`, API secrets, auth tokens, SIP credentials, or participant JWTs.
-- Never expose `LIVEKIT_API_SECRET`, `DEEPGRAM_API_KEY`, `TWILIO_AUTH_TOKEN`, or `BACKEND_API_TOKEN` in React code.
+- Never expose server API secrets, speech credentials, telephony credentials, or internal backend tokens in React code.
 - Rotate any credential that has appeared in a screenshot, chat, shell history, repository commit, or browser bundle.
-- Use separate development and production LiveKit/Deepgram/Twilio projects where possible.
+- Use separate development and production LiveKit, speech, and telephony projects where possible.
 - Replace the development `/users` bootstrap and browser `localStorage` bearer token with real authentication before serving untrusted users.
 - Restrict CORS, apply request rate limits, and add abuse controls before allowing public outbound calling.
 - Use a managed database and migrations for multi-instance production deployments.
@@ -735,8 +731,6 @@ A dedicated call is expected to end when its participant leaves or the call-cont
 - [LiveKit turn handling](https://docs.livekit.io/agents/logic/turns/)
 - [LiveKit adaptive interruption handling](https://docs.livekit.io/agents/logic/turns/adaptive-interruption-handling/)
 - [LiveKit SIP](https://docs.livekit.io/sip/)
-- [Deepgram speech-to-text](https://developers.deepgram.com/docs/speech-to-text)
-- [NVIDIA PersonaPlex research](https://research.nvidia.com/labs/adlr/personaplex/)
 
 ---
 

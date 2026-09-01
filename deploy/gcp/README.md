@@ -7,7 +7,7 @@ Internet ──HTTP :8000──────────────────�
                                                     │
 LiveKit Cloud ◄──────── outbound TLS/WebSocket ── Voice worker
                                                     │
-                                                    └──► Deepgram
+                                                    └──► private speech and voice services
 ```
 
 The API and agent use the same backend-only image but run as separate processes. The React frontend is not copied into or built by this image. FastAPI is published directly on VM port 8000, and SQLite data is stored in a named Docker volume.
@@ -16,7 +16,7 @@ The API and agent use the same backend-only image but run as separate processes.
 
 - A Google Cloud project with billing and Compute Engine enabled.
 - Google Cloud CLI authenticated to that project.
-- Working LiveKit Cloud, Deepgram, Cartesia, and optional Twilio/SIP configuration.
+- Working LiveKit Cloud, private speech/voice credentials, and optional Twilio/SIP configuration.
 - The application source available from a private Git repository or another secure transfer method.
 
 This setup intentionally has no Caddy or Nginx reverse proxy and therefore does not provide HTTPS. It is suitable for the backend API and phone/SIP calls. A separately hosted browser frontend must use HTTPS and cannot safely call this HTTP API from an HTTPS page because browsers block mixed content.
@@ -113,12 +113,10 @@ LIVEKIT_URL=wss://your-project.livekit.cloud
 LIVEKIT_API_KEY=your-livekit-api-key
 LIVEKIT_API_SECRET=your-livekit-api-secret
 LIVEKIT_AGENT_NAME=general-assistant
-LIVEKIT_LLM_MODEL=google/gemini-2.5-flash-lite
 
-DEEPGRAM_API_KEY=your-deepgram-api-key
 BACKEND_API_TOKEN=generate-a-long-random-value
 
-CARTESIA_VOICE_ID=your-cartesia-voice-id
+# Add the private speech, reasoning, and voice variables required by your worker.
 ```
 
 Generate `BACKEND_API_TOKEN` on the VM:
@@ -141,7 +139,7 @@ The SIP trunk ID must exist in the same LiveKit project as `LIVEKIT_URL` and its
 
 ## 5. Validate, build, and start
 
-`config --quiet` validates the Compose model without printing expanded secrets:
+`config --quiet` validates the Compose file without printing expanded secrets:
 
 ```bash
 sudo docker compose \

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title description">
   <title id="title">Animated full-duplex voice-agent pipeline</title>
-  <desc id="description">A caller waveform moves through speech recognition, Gemini reasoning, and streaming speech synthesis while an interruption signal travels in the opposite direction.</desc>
+  <desc id="description">A caller waveform moves through speech recognition, language reasoning, and streaming speech synthesis while an interruption signal travels in the opposite direction.</desc>
   <defs>
     <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#03120f"/>
@@ -55,19 +55,19 @@
     <g transform="translate(272 150)">
       <rect width="194" height="118" rx="19" fill="#0b2720" stroke="#245448"/>
       <text x="24" y="42" fill="#65e7c4" font-size="13" font-weight="700" letter-spacing="1.6">SPEECH TO TEXT</text>
-      <text x="24" y="73" fill="#e8fff9" font-size="20" font-weight="700">Deepgram</text>
+      <text x="24" y="73" fill="#e8fff9" font-size="20" font-weight="700">Listen</text>
       <text x="24" y="96" fill="#769f95" font-size="13">streaming transcript</text>
     </g>
     <g transform="translate(504 150)">
       <rect width="194" height="118" rx="19" fill="#0b2720" stroke="#245448"/>
       <text x="24" y="42" fill="#65e7c4" font-size="13" font-weight="700" letter-spacing="1.6">LANGUAGE MODEL</text>
-      <text x="24" y="73" fill="#e8fff9" font-size="20" font-weight="700">Gemini</text>
+      <text x="24" y="73" fill="#e8fff9" font-size="20" font-weight="700">Reason</text>
       <text x="24" y="96" fill="#769f95" font-size="13">token stream</text>
     </g>
     <g transform="translate(736 150)">
       <rect width="194" height="118" rx="19" fill="#0b2720" stroke="#245448"/>
       <text x="24" y="42" fill="#65e7c4" font-size="13" font-weight="700" letter-spacing="1.6">TEXT TO SPEECH</text>
-      <text x="24" y="73" fill="#e8fff9" font-size="20" font-weight="700">Cartesia</text>
+      <text x="24" y="73" fill="#e8fff9" font-size="20" font-weight="700">Speak</text>
       <text x="24" y="96" fill="#769f95" font-size="13">streaming audio</text>
     </g>
   </g>
