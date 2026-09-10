@@ -1,0 +1,10 @@
+{
+  "dispatch_rule": {
+    "name": "Twilio calls",
+    "rule": {
+      "dispatchRuleIndividual": {
+        "roomPrefix": "call-"
+      }
+    }
+  }
+}

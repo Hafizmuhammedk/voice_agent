@@ -1,0 +1,8 @@
+{
+  "name": "Twilio hotel calls",
+  "rule": {
+    "dispatchRuleIndividual": {
+      "roomPrefix": "twilio-"
+    }
+  }
+}
