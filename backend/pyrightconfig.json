@@ -1,0 +1,9 @@
+{
+  "include": ["__init__.py", "__main__.py", "agent.py", "app", "voice_agent", "tests"],
+  "exclude": ["test"],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "standard",
+  "venvPath": "..",
+  "venv": ".venv",
+  "extraPaths": [".."]
+}
